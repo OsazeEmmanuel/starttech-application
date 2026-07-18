@@ -9,11 +9,36 @@ import (
 
 // CORSMiddleware returns a CORS middleware using gin-contrib/cors
 func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
+
 	config := cors.DefaultConfig()
-	config.AllowOrigins = allowedOrigins
-	config.AllowCredentials = true
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
-	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+
+	if len(allowedOrigins) == 0 || (len(allowedOrigins) == 1 && allowedOrigins[0] == "*") {
+
+		config.AllowAllOrigins = true
+
+	} else {
+
+		config.AllowOrigins = allowedOrigins
+		config.AllowCredentials = true
+
+	}
+
+	config.AllowHeaders = []string{
+		"Origin",
+		"Content-Type",
+		"Accept",
+		"Authorization",
+		"X-Requested-With",
+	}
+
+	config.AllowMethods = []string{
+		"GET",
+		"POST",
+		"PUT",
+		"PATCH",
+		"DELETE",
+		"OPTIONS",
+	}
 
 	return cors.New(config)
 }

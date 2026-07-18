@@ -49,6 +49,14 @@ const usernameCacheTTL = 24 * time.Hour
 func main() {
 	// 1. Load Configuration
 	cfg, err := config.LoadConfig(".")
+        fmt.Printf("ENV MONGO_URI = %q\n", os.Getenv("MONGO_URI"))
+        fmt.Printf("ENV DB_NAME   = %q\n", os.Getenv("DB_NAME"))
+        fmt.Println("========== CONFIG ==========")
+        fmt.Printf("MongoURI = %q\n", cfg.MongoURI)
+        fmt.Printf("DBName   = %q\n", cfg.DBName)
+        fmt.Printf("AllowedOrigins = %#v\n", cfg.AllowedOrigins)
+        fmt.Printf("Raw ENV ALLOWED_ORIGINS = %q\n", os.Getenv("ALLOWED_ORIGINS"))
+        fmt.Println("============================")
 	if err != nil {
 		log.Fatalf("could not load config: %v", err)
 	}

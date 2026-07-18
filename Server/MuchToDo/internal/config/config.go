@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -23,62 +24,61 @@ type Config struct {
 	AllowedOrigins     []string `mapstructure:"ALLOWED_ORIGINS"`
 }
 
-// LoadConfig reads configuration from file or environment variables.
 func LoadConfig(path string) (config Config, err error) {
+
 	viper.AddConfigPath(path)
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
-
 	viper.AutomaticEnv()
 
-	// Set default values
-	viper.SetDefault("PORT", "8080")
-	viper.SetDefault("ENABLE_CACHE", false)
-	viper.SetDefault("JWT_EXPIRATION_HOURS", 72)
-	viper.SetDefault("COOKIE_DOMAINS", []string{"localhost"})
-	viper.SetDefault("SECURE_COOKIE", false)
-	viper.SetDefault("ALLOWED_ORIGINS", []string{"http://localhost:5173"})
-
-	err = viper.ReadInConfig()
-	if err != nil {
+	// Ignore if .env doesn't exist
+	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return
+			return config, err
 		}
 	}
 
 	err = viper.Unmarshal(&config)
 	if err != nil {
-		return
+		return config, err
 	}
 
-	// Manually handle comma-separated strings for slices if viper didn't split them
-	if allowedOrigins := viper.GetString("ALLOWED_ORIGINS"); allowedOrigins != "" {
-		parts := strings.Split(allowedOrigins, ",")
-		var cleaned []string
-		for _, p := range parts {
-			// Trim spaces and quotes
-			trimmed := strings.TrimSpace(p)
-			trimmed = strings.Trim(trimmed, "\"'")
-			if trimmed != "" {
-				cleaned = append(cleaned, trimmed)
-			}
+	// ------------------------------------------------
+	// TEMP DEBUG
+	// ------------------------------------------------
+
+	config.MongoURI = "mongodb+srv://isedeemmanuel26_db_user:gxS3ceOIiPNaEsz8@cluster0.6kasww3.mongodb.net/much_todo_db?appName=Cluster0"
+	config.DBName = "much_todo_db"
+
+	// ------------------------------------------------
+	// Read environment variables manually
+	// ------------------------------------------------
+
+	if val := os.Getenv("JWT_SECRET_KEY"); val != "" {
+		config.JWTSecretKey = val
+	}
+
+	if val := os.Getenv("REDIS_ADDR"); val != "" {
+		config.RedisAddr = val
+	}
+
+	if val := os.Getenv("PORT"); val != "" {
+		config.ServerPort = val
+	}
+
+	// ******** THIS FIXES YOUR CRASH ********
+
+	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
+
+		if val == "*" {
+			config.AllowedOrigins = []string{"*"}
+		} else {
+			config.AllowedOrigins = strings.Split(val, ",")
 		}
-		config.AllowedOrigins = cleaned
+
+	} else {
+		config.AllowedOrigins = []string{"*"}
 	}
 
-	if cookieDomains := viper.GetString("COOKIE_DOMAINS"); cookieDomains != "" {
-		parts := strings.Split(cookieDomains, ",")
-		var cleaned []string
-		for _, p := range parts {
-			// Trim spaces and quotes
-			trimmed := strings.TrimSpace(p)
-			trimmed = strings.Trim(trimmed, "\"'")
-			if trimmed != "" {
-				cleaned = append(cleaned, trimmed)
-			}
-		}
-		config.CookieDomains = cleaned
-	}
-
-	return
+	return config, nil
 }
