@@ -11,6 +11,7 @@ env:
   ECR_BACKEND_REPOSITORY: starttech-backend-api
   ECR_FRONTEND_REPOSITORY: starttech-frontend
   EKS_CLUSTER_NAME: starttech-cluster
+  DOCKER_BUILDKIT: 1
 
 jobs:
   deploy:
@@ -99,16 +100,28 @@ jobs:
       # Deploy Backend
       #################################################
 
-      - name: Restart Backend
+      - name: Deploy Backend
         run: |
-          kubectl rollout restart deployment/starttech-backend -n starttech
+          kubectl set image deployment/starttech-backend \
+          backend=${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ github.sha }} \
+          -n starttech
+
           kubectl rollout status deployment/starttech-backend -n starttech
 
       #################################################
       # Deploy Frontend
       #################################################
 
-      - name: Restart Frontend
+      - name: Deploy Frontend
         run: |
-          kubectl rollout restart deployment/starttech-frontend -n starttech
+          kubectl set image deployment/starttech-frontend \
+          frontend=${{ steps.ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ github.sha }} \
+          -n starttech
+
           kubectl rollout status deployment/starttech-frontend -n starttech
+
+      - name: Verify Deployment
+        run: |
+          kubectl get pods -n starttech
+          kubectl get svc -n starttech
+          kubectl get ingress -n starttech
