@@ -1,0 +1,114 @@
+name: Build and Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+      - feature/kubernetes-deployment
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_BACKEND_REPOSITORY: starttech-backend-api
+  ECR_FRONTEND_REPOSITORY: starttech-frontend
+  EKS_CLUSTER_NAME: starttech-cluster
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      #################################################
+      # Configure AWS Credentials
+      #################################################
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      #################################################
+      # Login to ECR
+      #################################################
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      #################################################
+      # Build Backend
+      #################################################
+
+      - name: Build Backend Image
+        run: |
+          docker build \
+          -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ github.sha }} \
+          -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:latest \
+          Server/MuchToDo
+
+      #################################################
+      # Push Backend
+      #################################################
+
+      - name: Push Backend Image
+        run: |
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ github.sha }}
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:latest
+
+      #################################################
+      # Build Frontend
+      #################################################
+
+      - name: Build Frontend Image
+        run: |
+          docker build \
+          -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ github.sha }} \
+          -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:latest \
+          Client
+
+      #################################################
+      # Push Frontend
+      #################################################
+
+      - name: Push Frontend Image
+        run: |
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ github.sha }}
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:latest
+
+      #################################################
+      # Configure kubectl
+      #################################################
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+          --region $AWS_REGION \
+          --name $EKS_CLUSTER_NAME
+
+      #################################################
+      # Deploy Backend
+      #################################################
+
+      - name: Restart Backend
+        run: |
+          kubectl rollout restart deployment/starttech-backend -n starttech
+          kubectl rollout status deployment/starttech-backend -n starttech
+
+      #################################################
+      # Deploy Frontend
+      #################################################
+
+      - name: Restart Frontend
+        run: |
+          kubectl rollout restart deployment/starttech-frontend -n starttech
+          kubectl rollout status deployment/starttech-frontend -n starttech
