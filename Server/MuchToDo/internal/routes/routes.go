@@ -15,7 +15,7 @@ import (
 
 // RegisterRoutes sets up all application routes.
 func RegisterRoutes(
-	router *gin.Engine,
+	router gin.IRouter,
 	userHandler *handlers.UserHandler,
 	todoHandler *handlers.TodoHandler,
 	healthHandler *handlers.HealthHandler,

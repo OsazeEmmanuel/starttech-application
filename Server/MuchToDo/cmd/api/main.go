@@ -16,9 +16,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"log/slog"
+        "fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -49,50 +49,53 @@ const usernameCacheTTL = 24 * time.Hour
 func main() {
 	// 1. Load Configuration
 	cfg, err := config.LoadConfig(".")
-        fmt.Printf("ENV MONGO_URI = %q\n", os.Getenv("MONGO_URI"))
-        fmt.Printf("ENV DB_NAME   = %q\n", os.Getenv("DB_NAME"))
-        fmt.Println("========== CONFIG ==========")
-        fmt.Printf("MongoURI = %q\n", cfg.MongoURI)
-        fmt.Printf("DBName   = %q\n", cfg.DBName)
-        fmt.Printf("AllowedOrigins = %#v\n", cfg.AllowedOrigins)
-        fmt.Printf("Raw ENV ALLOWED_ORIGINS = %q\n", os.Getenv("ALLOWED_ORIGINS"))
-        fmt.Println("============================")
 	if err != nil {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	// --- Logger ---
-	// This must be initialized before any other component that might log.
+	// Initialize logger
 	logger.InitLogger(cfg)
-	slog.Info("Logger initialized", "level", cfg.LogLevel, "format", cfg.LogFormat)
+	slog.Info("Logger initialized",
+		"level", cfg.LogLevel,
+		"format", cfg.LogFormat,
+	)
 
-	// 2. Connect to Database
+	// 2. Connect to MongoDB
 	dbClient, err := database.ConnectMongo(cfg.MongoURI, cfg.DBName)
 	if err != nil {
 		slog.Error("could not connect to MongoDB", slog.Any("error", err))
 		os.Exit(1)
 	}
+
 	defer func() {
-		if err = dbClient.Disconnect(context.Background()); err != nil {
+		if err := dbClient.Disconnect(context.Background()); err != nil {
 			slog.Error("Error disconnecting from MongoDB", slog.Any("error", err))
 		}
 	}()
+
 	slog.Info("Successfully connected to MongoDB.")
 
-	// 3. Initialize Services (Cache, Auth)
+	// 3. Initialize services
 	cacheService := cache.NewCacheService(cfg)
-	tokenService := auth.NewTokenService(cfg.JWTSecretKey, cfg.JWTExpirationHours)
+	tokenService := auth.NewTokenService(
+		cfg.JWTSecretKey,
+		cfg.JWTExpirationHours,
+	)
 
-	// Preload usernames into cache if enabled
+	// Preload usernames if caching is enabled
 	preloadUsernamesIntoCache(dbClient, cacheService, cfg)
 
-	// 4. Set up API router
-	router := setupRouter(dbClient, cfg, tokenService, cacheService)
+	// 4. Configure router
+	router := setupRouter(
+		dbClient,
+		cfg,
+		tokenService,
+		cacheService,
+	)
 
-	// 5. Start Server with graceful shutdown
+	// 5. Start HTTP server
 	startServer(router, cfg.ServerPort)
 }
-
 // preloadUsernamesIntoCache queries for all usernames and loads them into the cache,
 // but only if caching is enabled and a sentinel key indicates the cache is empty.
 func preloadUsernamesIntoCache(db *mongo.Client, cacheSvc cache.Cache, cfg config.Config) {
@@ -179,25 +182,33 @@ func setupRouter(db *mongo.Client, cfg config.Config, tokenSvc *auth.TokenServic
 	authMiddleware := middleware.AuthMiddleware(tokenSvc, cfg)
 
 	// Apply CORS middleware to the router
+	// Apply CORS middleware
 	router.Use(corsMiddleware)
 
-	// Register all routes
-	routes.RegisterRoutes(router, userHandler, todoHandler, healthHandler, authMiddleware)
-
-	// A simple ping route for health checks
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "pong"})
-	})
-
+	// Root endpoint
 	router.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Welcome to MuchToDo API"})
-	})
+    	c.JSON(http.StatusOK, gin.H{
+        "message": "Welcome to MuchToDo API",
+    })
+})
 
-	// Test route to debug /todos issue
-	router.GET("/test-todos", func(c *gin.Context) {
-		println("=== TEST TODOS ROUTE HIT ===")
-		c.JSON(http.StatusOK, gin.H{"message": "Test todos route works!"})
-	})
+// API routes
+api := router.Group("/api")
+{
+    api.GET("/ping", func(c *gin.Context) {
+        c.JSON(http.StatusOK, gin.H{
+            "message": "pong",
+        })
+    })
+
+    routes.RegisterRoutes(
+        api,
+        userHandler,
+        todoHandler,
+        healthHandler,
+        authMiddleware,
+    )
+}
 
 	// Handle 404
 	router.NoRoute(func(c *gin.Context) {

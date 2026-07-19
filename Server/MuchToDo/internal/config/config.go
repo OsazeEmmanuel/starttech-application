@@ -43,16 +43,15 @@ func LoadConfig(path string) (config Config, err error) {
 		return config, err
 	}
 
-	// ------------------------------------------------
-	// TEMP DEBUG
-	// ------------------------------------------------
+	// Read environment variables manually (override if present)
 
-	config.MongoURI = "mongodb+srv://isedeemmanuel26_db_user:gxS3ceOIiPNaEsz8@cluster0.6kasww3.mongodb.net/much_todo_db?appName=Cluster0"
-	config.DBName = "much_todo_db"
+	if val := os.Getenv("MONGO_URI"); val != "" {
+		config.MongoURI = val
+	}
 
-	// ------------------------------------------------
-	// Read environment variables manually
-	// ------------------------------------------------
+	if val := os.Getenv("DB_NAME"); val != "" {
+		config.DBName = val
+	}
 
 	if val := os.Getenv("JWT_SECRET_KEY"); val != "" {
 		config.JWTSecretKey = val
@@ -66,18 +65,14 @@ func LoadConfig(path string) (config Config, err error) {
 		config.ServerPort = val
 	}
 
-	// ******** THIS FIXES YOUR CRASH ********
+	// Handle ALLOWED_ORIGINS
 
 	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
-
 		if val == "*" {
 			config.AllowedOrigins = []string{"*"}
 		} else {
 			config.AllowedOrigins = strings.Split(val, ",")
 		}
-
-	} else {
-		config.AllowedOrigins = []string{"*"}
 	}
 
 	return config, nil
